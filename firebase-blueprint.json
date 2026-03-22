@@ -59,6 +59,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["date", "echoes", "createdAt"]
+    },
+    "HistoricalArchive": {
+      "title": "HistoricalArchive",
+      "description": "A historical event with its vector embedding for RAG search",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "year": { "type": "string" },
+        "archetype": { "type": "string" },
+        "embedding": { "type": "array", "items": { "type": "number" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "year", "archetype", "embedding", "createdAt"]
     }
   },
   "firestore": {
@@ -73,6 +87,10 @@
     "/daily_echoes/{date}": {
       "schema": { "$ref": "#/entities/DailyEcho" },
       "description": "Cached daily echoes"
+    },
+    "/historical_archives/{archiveId}": {
+      "schema": { "$ref": "#/entities/HistoricalArchive" },
+      "description": "Historical events with vector embeddings for RAG"
     }
   }
 }

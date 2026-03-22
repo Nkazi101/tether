@@ -66,32 +66,62 @@ export async function processNewsPipeline() {
       
       const vector = embeddingResponse.embeddings?.[0]?.values;
 
-      // 3. Search: Find Historical Parallels using Vector Search (Simulated for now if DB is empty)
-      
-      // 4. Synthesize: The "Shadow Motive" Agentic Workflow
-      const synthesisResponse = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: `Based on this modern event and its structural skeleton, identify the 'Shadow Motive' (the hidden driver or actual outcome based on historical precedent).
-        
-        Modern Event: ${article.title}
-        Skeleton: ${abstraction.structural_skeleton}
-        
-        Provide a historical parallel and the shadow motive.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              historical_parallel: { type: Type.STRING },
-              historical_description: { type: Type.STRING },
-              shadow_motive: { type: Type.STRING }
-            },
-            required: ["historical_parallel", "historical_description", "shadow_motive"]
+      // 3 & 4. Search and Synthesize: Call our RAG backend endpoint
+      let synthesis = {
+        historical_parallel: "Awaiting database population",
+        historical_description: "The vector database is currently empty. Please run the seeding script.",
+        shadow_motive: "N/A"
+      };
+
+      try {
+        const ragResponse = await fetch("/api/rag-search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            modern_title: article.title,
+            structural_skeleton: abstraction.structural_skeleton,
+            embedding: vector
+          })
+        });
+
+        if (ragResponse.ok) {
+          synthesis = await ragResponse.json();
+        } else {
+          const errorData = await ragResponse.json();
+          console.warn("RAG Search returned an error:", errorData.error);
+          
+          // Fallback if DB is empty or error occurs
+          if (ragResponse.status === 404) {
+             console.log("Vector DB is empty. Falling back to Gemini's internal knowledge.");
+             const fallbackResponse = await ai.models.generateContent({
+              model: "gemini-3.1-pro-preview",
+              contents: `Based on this modern event and its structural skeleton, identify the 'Shadow Motive' (the hidden driver or actual outcome based on historical precedent).
+              
+              Modern Event: ${article.title}
+              Skeleton: ${abstraction.structural_skeleton}
+              
+              Provide a historical parallel and the shadow motive.`,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.OBJECT,
+                  properties: {
+                    historical_parallel: { type: Type.STRING },
+                    historical_description: { type: Type.STRING },
+                    shadow_motive: { type: Type.STRING }
+                  },
+                  required: ["historical_parallel", "historical_description", "shadow_motive"]
+                }
+              }
+            });
+            synthesis = JSON.parse(fallbackResponse.text || "{}");
           }
         }
-      });
-
-      const synthesis = JSON.parse(synthesisResponse.text || "{}");
+      } catch (err) {
+         console.error("Failed to call RAG endpoint:", err);
+      }
 
       // 5. Prepare Echo
       const echoDoc = {

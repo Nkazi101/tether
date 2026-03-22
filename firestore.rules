@@ -121,6 +121,22 @@ service cloud.firestore {
              data.createdAt is timestamp;
     }
 
+    function isValidHistoricalArchive(data) {
+      return hasOnlyAllowedFields(['title', 'description', 'year', 'archetype', 'embedding', 'createdAt', 'source']) &&
+             hasRequiredFields(['title', 'description', 'year', 'archetype', 'embedding', 'createdAt']) &&
+             isValidString('title', 1, 500) &&
+             isValidString('description', 1, 5000) &&
+             isValidString('year', 1, 100) &&
+             isValidString('archetype', 1, 200) &&
+             isValidOptionalString('source', 0, 200) &&
+             data.embedding is map &&
+             data.embedding.keys().hasAll(['__type__', 'value']) &&
+             data.embedding.__type__ == '__vector__' &&
+             data.embedding.value is list &&
+             data.embedding.value.size() == 768 && // gemini-embedding-2-preview outputs 768 dimensions
+             data.createdAt is timestamp;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -158,6 +174,13 @@ service cloud.firestore {
       allow read: if true; // Publicly readable to allow the app to fetch cached echoes
       allow create: if isAuthenticated() && isValidDailyEcho(request.resource.data);
       allow update: if isAdmin(); // Only admins can update cached echoes
+      allow delete: if isAdmin();
+    }
+
+    match /historical_archives/{archiveId} {
+      allow read: if true; // Publicly readable for vector search
+      allow create: if isAdmin() && isValidHistoricalArchive(request.resource.data);
+      allow update: if isAdmin() && isValidHistoricalArchive(request.resource.data);
       allow delete: if isAdmin();
     }
   }

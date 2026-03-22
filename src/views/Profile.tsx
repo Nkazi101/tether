@@ -1,11 +1,85 @@
-import React from 'react';
-import { User, Settings, Archive, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, Settings, Archive, LogOut, Database, Globe } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../components/AuthProvider';
+import { db } from '../lib/firebase';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export function Profile() {
   const { showToast } = useToast();
   const { user, signIn, signOut } = useAuth();
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isSeedingTier2, setIsSeedingTier2] = useState(false);
+
+  const writeEventsToFirestore = async (events: any[]) => {
+    let count = 0;
+    for (const event of events) {
+      try {
+        // Generate a simple ID based on the title
+        const id = event.title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 50);
+        
+        // Write to Firestore using the special map format for vectors
+        await setDoc(doc(db, 'historical_archives', id), {
+          title: event.title,
+          year: event.year,
+          archetype: event.archetype,
+          description: event.description,
+          source: event.source || "Golden Set",
+          embedding: {
+            __type__: '__vector__',
+            value: event.embedding
+          },
+          createdAt: serverTimestamp()
+        }, { merge: true });
+        count++;
+      } catch (e) {
+        console.error("Failed to write event:", event.title, e);
+      }
+    }
+    return count;
+  };
+
+  const handleSeedDatabase = async () => {
+    setIsSeeding(true);
+    showToast('Generating embeddings for Golden Set...');
+    try {
+      const response = await fetch('/api/seed', { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        showToast(`Writing ${data.events.length} events to Firestore...`);
+        const count = await writeEventsToFirestore(data.events);
+        showToast(`Successfully seeded ${count} events!`);
+      } else {
+        const error = await response.json();
+        showToast(`Error: ${error.error}`);
+      }
+    } catch (err) {
+      showToast('Failed to seed database.');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const handleSeedTier2 = async () => {
+    setIsSeedingTier2(true);
+    showToast('Fetching Wikipedia events and generating embeddings...');
+    try {
+      const response = await fetch('/api/seed-tier2', { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        showToast(`Writing ${data.events.length} Tier 2 events to Firestore...`);
+        const count = await writeEventsToFirestore(data.events);
+        showToast(`Successfully seeded ${count} Tier 2 events!`);
+      } else {
+        const error = await response.json();
+        showToast(`Error: ${error.error}`);
+      }
+    } catch (err) {
+      showToast('Failed to seed Tier 2 database.');
+    } finally {
+      setIsSeedingTier2(false);
+    }
+  };
 
   if (!user) {
     return (
@@ -78,6 +152,34 @@ export function Profile() {
           <div className="flex items-center gap-4">
             <LogOut size={20} />
             <span className="font-medium">Log Out</span>
+          </div>
+        </div>
+
+        {/* Admin Tools */}
+        <div className="mt-12 pt-8 border-t border-surface-container-high">
+          <h3 className="font-label text-xs uppercase tracking-widest text-secondary mb-4">Admin Tools</h3>
+          <div className="space-y-4">
+            <button 
+              onClick={handleSeedDatabase}
+              disabled={isSeeding}
+              className="w-full bg-surface-container-low p-6 rounded-xl flex items-center justify-between hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-center gap-4">
+                <Database className="text-primary opacity-70" size={20} />
+                <span className="font-medium text-primary">{isSeeding ? 'Seeding Database...' : 'Seed Vector Database (Golden Set)'}</span>
+              </div>
+            </button>
+
+            <button 
+              onClick={handleSeedTier2}
+              disabled={isSeedingTier2}
+              className="w-full bg-surface-container-low p-6 rounded-xl flex items-center justify-between hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-center gap-4">
+                <Globe className="text-primary opacity-70" size={20} />
+                <span className="font-medium text-primary">{isSeedingTier2 ? 'Fetching Wikipedia...' : 'Seed Tier 2 (Wikipedia On-This-Day)'}</span>
+              </div>
+            </button>
           </div>
         </div>
       </div>
