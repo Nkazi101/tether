@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Curation": {
+      "title": "Curation",
+      "description": "A saved historical parallel by a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "modernTitle": { "type": "string" },
+        "historicalTitle": { "type": "string" },
+        "modernEvent": { "type": "string" },
+        "historicalEvent": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "link": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "modernTitle", "historicalTitle", "modernEvent", "historicalEvent", "description", "createdAt"]
+    },
+    "DailyEcho": {
+      "title": "DailyEcho",
+      "description": "Cached daily echoes to prevent redundant API calls",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "YYYY-MM-DD format" },
+        "echoes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "modernTitle": { "type": "string" },
+              "historicalTitle": { "type": "string" },
+              "modernEvent": { "type": "string" },
+              "historicalEvent": { "type": "string" },
+              "description": { "type": "string" },
+              "imageUrl": { "type": "string" },
+              "imageAlt": { "type": "string" },
+              "highlight": { "type": "string" },
+              "layout": { "type": "string" },
+              "link": { "type": "string" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "echoes", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/curations/{curationId}": {
+      "schema": { "$ref": "#/entities/Curation" },
+      "description": "Saved echoes by users"
+    },
+    "/daily_echoes/{date}": {
+      "schema": { "$ref": "#/entities/DailyEcho" },
+      "description": "Cached daily echoes"
+    }
+  }
+}
